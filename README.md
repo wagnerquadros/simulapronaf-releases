@@ -65,10 +65,13 @@ Após calcular, os resultados são exibidos de forma clara e visual:
 - [ ] Tela de ajuda/contexto com informações sobre o PRONAF
 
 ## 📦 Instalação / Build
-- Baixe o APK no seu dispositivo.
-- Se necessário, ative “Instalar apps de fontes desconhecidas”.
-- Abra o APK e siga as instruções.
- 
+
+Este repositório é **privado**.  
+Para compilar o projeto, é necessário ter permissões de acesso.  
+
+1. Abra no **Android Studio (Giraffe ou superior)**.  
+2. Sincronize as dependências com o Gradle.  
+3. Rode no emulador ou dispositivo físico (API 26+).  
 
 ## 📝 CHANGELOG
 
