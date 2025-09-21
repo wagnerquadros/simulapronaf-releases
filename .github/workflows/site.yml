@@ -1,0 +1,309 @@
+name: Build & Publish Downloads Page
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Capture release metadata
+        id: meta
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          PUBLISHED_AT="${{ github.event.release.published_at }}"
+          PRERELEASE="${{ github.event.release.prerelease }}"
+          REPO="${{ github.repository }}"
+
+          # Badge dinâmico
+          if [ "$PRERELEASE" = "true" ]; then
+            BADGE="Beta"
+          else
+            BADGE="Estável"
+          fi
+
+          # Data em dd/mm/aaaa
+          DATE_FMT="$(date -d "$PUBLISHED_AT" +%d/%m/%Y)"
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "published=$DATE_FMT" >> $GITHUB_OUTPUT
+          echo "badge=$BADGE" >> $GITHUB_OUTPUT
+          echo "repo=$REPO" >> $GITHUB_OUTPUT
+
+      - name: Baixar APK da release
+        id: dl
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Descobre o primeiro ativo .apk desta release e baixa
+          TAG="${{ steps.meta.outputs.tag }}"
+          REPO="${{ steps.meta.outputs.repo }}"
+
+          # Lista assets via API
+          ASSETS_JSON="$(gh api repos/$REPO/releases/tags/$TAG)"
+          APK_NAME="$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name | endswith(".apk")) | .name' | head -n1)"
+
+          if [ -z "$APK_NAME" ] || [ "$APK_NAME" = "null" ]; then
+            echo "Nenhum ativo .apk encontrado nesta release ($TAG)." >&2
+            exit 1
+          fi
+
+          DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/$APK_NAME"
+          echo "Baixando: $DOWNLOAD_URL"
+          curl -L --fail -o "$APK_NAME" "$DOWNLOAD_URL"
+
+          # SHA-256
+          SHA256="$(sha256sum "$APK_NAME" | awk '{print $1}')"
+
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+          echo "download_url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Gerar site (index.html)
+        run: |
+          mkdir -p public
+          TAG="${{ steps.meta.outputs.tag }}"
+          DATE_FMT="${{ steps.meta.outputs.published }}"
+          BADGE="${{ steps.meta.outputs.badge }}"
+          REPO="${{ steps.meta.outputs.repo }}"
+          APK_NAME="${{ steps.dl.outputs.apk_name }}"
+          DOWNLOAD_URL="${{ steps.dl.outputs.download_url }}"
+          SHA256="${{ steps.dl.outputs.sha256 }}"
+
+          # Gera HTML com o seu template + variáveis
+          cat > public/index.html <<EOF
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimulaPRONAF – Downloads</title>
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --verde-petroleo: #0F766E;
+      --verde-escuro:   #115E59;
+      --cinza-900:      #111827;
+      --cinza-700:      #374151;
+      --cinza-600:      #4B5563;
+      --cinza-500:      #6B7280;
+      --cinza-200:      #E5E7EB;
+      --cinza-100:      #F3F4F6;
+      --branco:         #FFFFFF;
+      --sombra:         0 8px 28px rgba(0,0,0,.08);
+      --radius-xl:      18px;
+      --radius-md:      12px;
+      --maxw:           900px;
+    }
+    body{
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--cinza-900);
+      background: var(--cinza-100);
+      margin:0; padding:0;
+    }
+    header{
+      max-width: var(--maxw);
+      margin: 24px auto 0;
+      padding: 0 20px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .logo{
+      width:42px;height:42px;border-radius:12px;
+      display:grid;place-items:center;
+      background: var(--verde-petroleo);
+      color: var(--branco);
+      font-weight:700;
+      box-shadow: var(--sombra);
+      user-select:none;
+    }
+    .titulo{font-weight:800;font-size:24px;}
+    .badge{
+      background: #F59E0B; color: var(--branco);
+      padding:6px 12px;border-radius:999px;
+      font-weight:700;font-size:12px;
+      margin-left:auto;
+    }
+    main{
+      max-width: var(--maxw);
+      margin: 24px auto 40px;
+      padding: 0 20px;
+    }
+    .card{
+      background: var(--branco);
+      border: 1px solid var(--cinza-200);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--sombra);
+      padding: 22px;
+    }
+    .linha-topo{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+    .versao{font-weight:700;color: var(--cinza-700);}
+    .data{color: var(--cinza-500);font-size:14px;}
+    .descricao{margin:10px 0 18px;color: var(--cinza-600);}
+    .acoes{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{
+      padding:14px 18px;border-radius: var(--radius-md);
+      font-weight:700;text-decoration:none;
+      transition: background .2s ease;
+    }
+    .btn-primaria{background: var(--verde-petroleo); color: var(--branco);}
+    .btn-primaria:hover{background: var(--verde-escuro);}
+    .btn-secundaria{background: var(--branco); color: var(--verde-petroleo); border:1px solid var(--verde-petroleo);}
+    .sec{margin-top:20px;}
+    .sec h3{margin:0 0 8px;font-size:18px}
+    .mono{
+      font-family: monospace;
+      background: #0f766e0d; border:1px dashed #0f766e30;
+      padding:12px;border-radius:8px;
+      overflow:auto
+    }
+    footer{
+      max-width: var(--maxw);
+      margin: 16px auto 32px;
+      padding: 20px;
+      color: var(--cinza-600);
+      font-size: 14px;
+      text-align:center;
+    }
+    footer .dev{margin-bottom:8px;}
+    footer .social{
+      display:flex;justify-content:center;gap:18px;margin-bottom:8px;
+    }
+    footer .social a{
+      color: var(--verde-petroleo);
+      transition: color .2s ease;
+    }
+    footer .social a:hover{
+      color: var(--verde-escuro);
+    }
+    footer .copy{font-size:12px;color: var(--cinza-500);}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SP</div>
+  <div class="titulo">SimulaPRONAF</div>
+  <span class="badge">${BADGE}</span>
+</header>
+
+<main>
+  <section class="card">
+    <div class="linha-topo">
+      <div>
+        <div class="versao">Versão mais recente: <strong>${TAG}</strong></div>
+        <div class="data">${DATE_FMT}</div>
+      </div>
+      <div class="acoes">
+        <a class="btn btn-primaria" href="${DOWNLOAD_URL}" download>
+          📦 Baixar APK
+        </a>
+        <a class="btn btn-secundaria" href="https://github.com/${REPO}/releases/tag/${TAG}">
+          🔎 Ver release
+        </a>
+      </div>
+    </div>
+
+    <p class="descricao">
+      Esta é a versão pública de testes do aplicativo <strong>SimulaPRONAF</strong>. O código-fonte é privado; aqui você encontra apenas os binários oficiais para download e verificação de integridade.
+    </p>
+
+    <!-- Agora tudo em uma coluna -->
+    <div class="sec">
+      <h3>Novidades desta versão</h3>
+      <ul>
+        <li>Entrada de valor com campo de texto (substitui slider).</li>
+        <li>Validações: faixa 1.000–250.000, limite de 6 dígitos.</li>
+        <li>Prefixo <em>R$</em> fixo e placeholder “digite o valor aqui”.</li>
+        <li>Foco no campo em caso de erro e cursor estável no fim.</li>
+      </ul>
+    </div>
+
+    <div class="sec">
+      <h3>Como instalar</h3>
+      <ol>
+        <li>Baixe o APK no botão acima.</li>
+        <li>No Android, ative “Instalar apps de fontes desconhecidas” (se solicitado).</li>
+        <li>Abra o arquivo e siga as instruções.</li>
+      </ol>
+    </div>
+
+    <div class="sec">
+      <h3>Integridade (SHA-256)</h3>
+      <pre class="mono">SHA-256: ${SHA256}</pre>
+    </div>
+
+    <div class="sec">
+      <h3>Como verificar no seu computador</h3>
+      <pre class="mono">
+Linux/macOS:
+shasum -a 256 ${APK_NAME}
+
+Windows (PowerShell):
+Get-FileHash ${APK_NAME} -Algorithm SHA256
+      </pre>
+    </div>
+
+  </section>
+</main>
+
+<footer>
+  <div class="dev">Desenvolvido por <strong>Wagner Quadros</strong></div>
+  <div class="social">
+    <a href="https://github.com/wagnerquadros" target="_blank" aria-label="GitHub">
+      <!-- Ícone GitHub -->
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.5 1.1 3.1.8.1-.7.4-1.1.7-1.4-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.4 1.2-3.3-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.4 1.2a11.8 11.8 0 0 1 6.2 0c2.3-1.5 3.4-1.2 3.4-1.2.6 1.7.2 2.9.1 3.2.8.9 1.2 2 1.2 3.3 0 4.5-2.7 5.5-5.3 5.8.4.3.8 1 .8 2v3c0 .3.2.7.8.6a11.5 11.5 0 0 0 7.9-10.9C23.5 5.65 18.35.5 12 .5Z"/>
+      </svg>
+    </a>
+    <a href="https://www.linkedin.com/in/wagner-quadros-123301b2" target="_blank" aria-label="LinkedIn">
+      <!-- Ícone LinkedIn -->
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M20.45 20.45h-3.55v-5.4c0-1.3 0-3-1.85-3s-2.15 1.4-2.15 2.9v5.5h-3.55V9h3.4v1.6h.05c.5-1 1.75-2.1 3.6-2.1 3.85 0 4.55 2.5 4.55 5.7v6.25zM5.34 7.43a2.06 2.06 0 1 1 0-4.11 2.06 2.06 0 0 1 0 4.11zM7.12 20.45H3.56V9h3.56v11.45zM22.23 0H1.77C.8 0 0 .77 0 1.72v20.55C0 23.23.8 24 1.77 24h20.46c.97 0 1.77-.77 1.77-1.72V1.72C24 .77 23.2 0 22.23 0z"/>
+      </svg>
+    </a>
+  </div>
+  <div class="copy">
+    © <span id="ano"></span> SimulaPRONAF — distribuição pública de binários.
+  </div>
+</footer>
+
+<script>
+  document.getElementById('ano').textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>
+EOF
+
+      - name: Upload artifact (public/)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
