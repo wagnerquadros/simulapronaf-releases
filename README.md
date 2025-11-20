@@ -1,5 +1,5 @@
 # SimulaPRONAF
-![version](https://img.shields.io/badge/version-v2.0.0-blue?style=for-the-badge)
+![version](https://img.shields.io/badge/version-v2.1.1-blue?style=for-the-badge)
 ![status](https://img.shields.io/badge/status-STABLE-brightgreen?style=for-the-badge)
 
 **SimulaPRONAF** é um aplicativo Android desenvolvido para auxiliar agricultores familiares a simularem rapidamente condições de crédito rural com base no **PRONAF (Programa Nacional de Fortalecimento da Agricultura Familiar)**. Nesta versão MVP, o foco é oferecer uma simulação simples, intuitiva e acessível em duas telas principais.
@@ -7,6 +7,23 @@
 ## Objetivo
 
 Fornecer uma ferramenta prática e confiável que permita ao agricultor visualizar o custo total e a viabilidade de um financiamento rural de forma rápida e descomplicada.
+
+
+## 🧱 Arquitetura do Projeto
+
+O **SimulaPRONAF** adota a arquitetura **MVVM (Model–View–ViewModel)**, amplamente utilizada em aplicativos Android modernos por promover organização, separação de responsabilidades e facilidade de manutenção.
+
+A aplicação é estruturada em três camadas principais:
+
+- **View (UI):** composta por telas desenvolvidas em **Jetpack Compose**, é responsável pela **interação com o usuário** e pela **exibição dos dados** provenientes da camada de ViewModel.
+- **ViewModel:** atua como intermediária entre a interface e a lógica de negócio, **gerenciando o estado da tela**, processando **eventos gerados pelo usuário** e coordenando as chamadas para os casos de uso e operações de cálculo.
+- **Camada de Lógica:** encapsula a **operação principal de simulação** — cálculo de parcelas, taxas e valores — garantindo **independência total da interface gráfica** e maior testabilidade do código.
+
+> **Fluxo de Comunicação:**  
+> `View → ViewModel → Camada de Lógica → ViewModel → View`
+
+
+
 
 ## Funcionalidades do MVP
 
@@ -38,12 +55,12 @@ Abaixo, uma visualização da interface da funcionalidade **Simulação Rápida*
 ### 1. Tela de entrada de dados
 O usuário informa o valor do crédito, a taxa anual e o número de parcelas:
 
-<img src="docs/img/tela-simulacao-rapida.png" alt="Tela de Simulação" width="25%"/>
+<img src="docs/img/tela-entrada-dados.png" alt="Tela de Simulação" width="25%"/>
 
 ### 2. Tela de resultados da simulação
 Após calcular, os resultados são exibidos de forma clara e visual:
 
-<img src="docs/img/tela-cronograma.png" alt="Tela de Cronograma" width="25%"/>
+<img src="docs/img/tela-cronograma2.png" alt="Tela de Cronograma" width="25%"/>
 
 ## 🛣️ Roadmap
 
@@ -64,6 +81,41 @@ Após calcular, os resultados são exibidos de forma clara e visual:
 - [ ] Exportar/Compartilhar resultado da simulação em PDF ou formato compartilhável
 - [ ] Tela de ajuda/contexto com informações sobre o PRONAF
 
+## Visão de Evolução: Modalidades do PRONAF + Mais Alimentos
+
+Além do MVP atual, o projeto possui uma versão em expansão voltada à simulação detalhada das diferentes **modalidades do PRONAF**, incluindo linhas específicas como:
+
+- PRONAF Custeio
+- PRONAF Investimento
+- PRONAF Jovem
+- PRONAF Mulher
+- PRONAF Agroecologia
+- **PRONAF Mais Alimentos**
+
+Essa etapa permitirá que o agricultor selecione a modalidade desejada e visualize **regras específicas**, tais como:
+
+- Taxas de juros próprias da linha
+- Limites de financiamento
+- Prazos máximos de pagamento
+- Possibilidades de bônus e descontos
+- Finalidades permitidas (máquinas, insumos, infraestrutura etc.)
+
+O objetivo é oferecer uma **simulação contextualizada**, alinhada ao perfil produtivo do agricultor, tornando a tomada de decisão mais segura e autônoma.
+
+### 🧭 Fluxo Previsto para a Versão Avançada
+
+1. Seleção da modalidade do PRONAF
+2. Informar dados da proposta (valor, prazo, finalidade, perfil produtivo)
+3. Visualização das condições da linha
+4. Simulação completa com detalhes financeiros e orientações de enquadramento
+
+Abaixo, uma visualização conceitual dessa versão em desenvolvimento:
+
+<p align="center">
+  <img src="docs/img/prototipo.png" alt="Protótipo da Versão com Modalidades PRONAF" width="45%">
+</p>
+
+
 ## 📦 Instalação / Build
 
 Este repositório é **privado**.  
@@ -74,6 +126,11 @@ Para compilar o projeto, é necessário ter permissões de acesso.
 3. Rode no emulador ou dispositivo físico (API 26+).  
 
 ## 📝 CHANGELOG
+
+### [2.1.1] - 2025-11-20
+#### Adicionado
+- Splash Screen com animação de fade-in no logo.
+- Novo ícone do aplicativo, aplicado ao manifesto e compatível com o Adaptive Icon do Android.
 
 ### [2.0.0] - 2025-09-21
 #### Alterado
